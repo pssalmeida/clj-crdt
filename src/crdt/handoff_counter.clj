@@ -55,6 +55,13 @@
                        (filter (fn [[[src dst] _]] (and (= src id2) (not= dst id))) tokens2))) 
     counter))
 
+(defn- discard-slot [{id :id slots :slots :as counter} {id2 :id sc2 :src-clock tokens2 :tokens}]
+  (if (and (slots id2)
+           (not (tokens2 [id2 id]))
+           (> sc2 (:src-clock (slots id2))))
+    (assoc counter :slots (dissoc slots id2))
+    counter))
+
 (defn- fill-slots [{id :id tier :tier vs :vals slots :slots :as counter}
                    {id2 :id tier2 :tier sc2 :src-clock tokens2 :tokens}]
   (let [[vid slots]
@@ -67,9 +74,7 @@
                   [vid slots])
                 [vid slots])
               [vid slots]))
-          (if (and (slots id2) (not (tokens2 [id2 id])) (> sc2 (:src-clock (slots id2)))) 
-            [(vs id) (dissoc slots id2)]
-            [(vs id) slots])
+          [(vs id) slots]
           tokens2)]
     (assoc counter :vals (assoc vs id vid) :slots slots)))
 
@@ -110,5 +115,12 @@
     counter
     (reduce #(%2 %1 counter2)
             counter
-            [discard-tokens fill-slots merge-vectors update-estimates create-slot create-token cache-tokens])))
+            [discard-tokens
+             discard-slot
+             fill-slots
+             merge-vectors
+             update-estimates
+             create-slot
+             create-token
+             cache-tokens])))
 
