@@ -98,15 +98,17 @@
       counter) 
     counter))
 
-(defn- update-estimates [{tier :tier v :val vs :vals above :above :as counter}
-                         {tier2 :tier v2 :val above2 :above}]
-  (let [above (cond
-                (= tier tier2) (max above above2)
-                (> tier tier2) (max above v2)
-                true           above)]
-    (assoc counter
-           :above above
-           :val (max (if (= tier tier2) (max v v2) v) (apply + above (vals vs))))))
+(defn- update-estimates [{id :id tier :tier v :val vs :vals above :above :as counter}
+                         {id2 :id tier2 :tier v2 :val vs2 :vals above2 :above}]
+  (let [a' (cond
+             (= tier tier2) (max above above2)
+             (> tier tier2) (max above v2)
+             true           above)
+        v' (cond
+             (zero? tier)   (apply + (vals vs))
+             (= tier tier2) (max v v2 (+ a' (vs id) (vs2 id2)))
+             true           (max v (+ a' (vs id))))]
+    (assoc counter :above a' :val v')))
 
 (defn join
   "Joins counter2 into counter, returning updated counter."
