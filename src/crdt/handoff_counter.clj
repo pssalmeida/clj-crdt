@@ -14,9 +14,9 @@
   {:id id
    :tier tier
    :val 0
-   :above 0
-   :src-clock 0
-   :dst-clock 0
+   :below 0
+   :sck 0
+   :dck 0
    :slots (sorted-map)
    :tokens (sorted-map)
    :vals (assoc (sorted-map) id 0)})
@@ -31,84 +31,77 @@
     (update-in [:val] inc)
     (update-in [:vals (:id counter)] inc)))
 
-(defn- merge-vectors [{tier :tier v :vals :as counter} {tier2 :tier v2 :vals}]
-  (if (and (zero? tier) (zero? tier2))
-    (assoc counter :vals (merge-with max v v2)) 
-    counter))
-
-(defn- discard-tokens [{tokens :tokens :as counter} {id2 :id dc2 :dst-clock slots2 :slots}]
+(defn- discard-tokens [{tokens :tokens :as counter} {id2 :id dc2 :dck slots2 :slots}]
   (assoc counter :tokens
     (conj (sorted-map)
           (remove
-            (fn [[[src dst] {dc :dst-clock}]]
+            (fn [[[src dst] {dc :dck}]]
               (and (= dst id2)
                    (if (slots2 src)
-                     (> (:dst-clock (slots2 src)) dc)
+                     (> (:dck (slots2 src)) dc)
                      (>= dc2 dc))))
             tokens))))
 
-(defn- cache-tokens [{id :id tier :tier tokens :tokens :as counter} {id2 :id tier2 :tier tokens2 :tokens}]
-  (if (< tier tier2)
-    (assoc counter :tokens
-           (merge-with (fn [{sc1 :src-clock :as tok1} {sc2 :src-clock :as tok2}] (if (>= sc1 sc2) tok1 tok2))
-                       tokens
-                       (filter (fn [[[src dst] _]] (and (= src id2) (not= dst id))) tokens2))) 
-    counter))
-
-(defn- discard-slot [{id :id slots :slots :as counter} {id2 :id sc2 :src-clock tokens2 :tokens}]
+(defn- discard-slot [{id :id slots :slots :as counter} {id2 :id sc2 :sck tokens2 :tokens}]
   (if (and (slots id2)
            (not (tokens2 [id2 id]))
-           (> sc2 (:src-clock (slots id2))))
+           (> sc2 (:sck (slots id2))))
     (assoc counter :slots (dissoc slots id2))
     counter))
 
 (defn- fill-slots [{id :id tier :tier vs :vals slots :slots :as counter}
-                   {id2 :id tier2 :tier sc2 :src-clock tokens2 :tokens}]
-  (let [[vid slots]
-        (reduce
-          (fn [[vid slots] [[src dst] {dct :dst-clock n :val}]]
-            (if (= dst id)
-              (if-let [{dcs :dst-clock} (slots src)]
-                (if (= dct dcs)
-                  [(+ vid n) (dissoc slots src)]
-                  [vid slots])
-                [vid slots])
-              [vid slots]))
-          [(vs id) slots]
-          tokens2)]
-    (assoc counter :vals (assoc vs id vid) :slots slots)))
+                   {id2 :id tier2 :tier sc2 :sck tokens2 :tokens}]
+  (let [S (for [[[src dst] {dct :dck n :val}] tokens2
+                :when (and (= dst id)
+                           (= dct (:dck (slots src))))]
+            [src n])]
+    (assoc counter
+           :vals (assoc vs id (apply + (vs id) (map second S)))
+           :slots (apply dissoc slots (map first S)))))
 
-(defn- create-slot [{tier :tier dc :dst-clock slots :slots :as counter}
-                    {tier2 :tier id2 :id sc2 :src-clock v2 :vals}]
+(defn- merge-vectors [{tier :tier v :vals :as counter} {tier2 :tier v2 :vals}]
+  (if (= tier tier2 0)
+    (assoc counter :vals (merge-with max v v2)) 
+    counter))
+
+(defn- cache-values [{id :id tier :tier v :val vs :vals below :below :as counter}
+                         {id2 :id tier2 :tier v2 :val vs2 :vals below2 :below}]
+  (let [b' (cond
+             (= tier tier2) (max below below2)
+             (> tier tier2) (max below v2)
+             true           below)
+        v' (cond
+             (zero? tier)   (apply + (vals vs))
+             (= tier tier2) (max v v2 (+ b' (vs id) (vs2 id2)))
+             true           (max v (+ b' (vs id))))]
+    (assoc counter :below b' :val v')))
+
+(defn- create-slot [{tier :tier dc :dck slots :slots :as counter}
+                    {tier2 :tier id2 :id sc2 :sck v2 :vals}]
   (if (and (< tier tier2)
            (pos? (v2 id2))
            (or (not (slots id2))
-               (> sc2 (:src-clock (slots id2)))))
-    (assoc-in (assoc counter :dst-clock (inc dc)) [:slots id2] {:src-clock sc2 :dst-clock (inc dc)})
+               (> sc2 (:sck (slots id2)))))
+    (assoc-in (assoc counter :dck (inc dc)) [:slots id2] {:sck sc2 :dck (inc dc)})
     counter))
 
-(defn- create-token [{id :id sc :src-clock vs :vals :as counter} {id2 :id slots2 :slots}]
-  (if-let [{scs :src-clock dcs :dst-clock} (slots2 id)]
+(defn- create-token [{id :id sc :sck vs :vals :as counter} {id2 :id slots2 :slots}]
+  (if-let [{scs :sck dcs :dck} (slots2 id)]
     (if (= scs sc)
-      (let [n (vs id)]
-        (-> counter
-          (assoc-in [:tokens [id id2]] {:src-clock scs :dst-clock dcs :val n})
-          (assoc-in [:vals id] 0)
-          (assoc :src-clock (inc sc))))
+      (-> counter
+        (assoc-in [:tokens [id id2]] {:sck scs :dck dcs :val (vs id)})
+        (assoc-in [:vals id] 0)
+        (assoc :sck (inc sc)))
       counter) 
     counter))
 
-(defn- update-estimates [{id :id tier :tier v :val vs :vals above :above :as counter}
-                         {id2 :id tier2 :tier v2 :val vs2 :vals above2 :above}]
-  (let [a' (cond
-             (= tier tier2) (max above above2)
-             (> tier tier2) (max above v2)
-             true           above)
-        v' (cond
-             (zero? tier)   (apply + (vals vs))
-             (= tier tier2) (max v v2 (+ a' (vs id) (vs2 id2)))
-             true           (max v (+ a' (vs id))))]
-    (assoc counter :above a' :val v')))
+(defn- cache-tokens [{id :id tier :tier tokens :tokens :as counter} {id2 :id tier2 :tier tokens2 :tokens}]
+  (if (< tier tier2)
+    (assoc counter :tokens
+           (merge-with (fn [{sc1 :sck :as tok1} {sc2 :sck :as tok2}] (if (>= sc1 sc2) tok1 tok2))
+                       tokens
+                       (filter (fn [[[src dst] _]] (and (= src id2) (not= dst id))) tokens2))) 
+    counter))
 
 (defn join
   "Joins counter2 into counter, returning updated counter."
@@ -121,7 +114,7 @@
              discard-slot
              fill-slots
              merge-vectors
-             update-estimates
+             cache-values
              create-slot
              create-token
              cache-tokens])))
