@@ -3,7 +3,10 @@
 CRDTs - Conflict-free Replicated Data Types:
   - Handoff Counters - eventually consistent distributed counters
 
+
 ## Usage
+
+Handoff Counters - eventually consistent distributed counters
 
 (use crdt.handoff-counter)
 (let [c1 (init :id1 tier)
@@ -21,3 +24,4 @@ CRDTs - Conflict-free Replicated Data Types:
 Copyright (C) 2013 Paulo Sérgio Almeida
 
 Distributed under the Eclipse Public License, the same as Clojure.
+
