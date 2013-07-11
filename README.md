@@ -6,8 +6,9 @@ CRDTs - Conflict-free Replicated Data Types:
 
 ## Usage
 
-Handoff Counters - eventually consistent distributed counters
+- Handoff Counters - eventually consistent distributed counters
 
+```Clojure
 (use crdt.handoff-counter)
 (let [c1 (init :id1 tier)
       c2 (init :id2 tier)
@@ -17,7 +18,7 @@ Handoff Counters - eventually consistent distributed counters
       c2 (join c2 c1)
       ; ...]
   (value c1))
-
+```
 
 ## License
 

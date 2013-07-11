@@ -8,9 +8,10 @@
 (defn init [id tier]
   "Creates starting state for a node.
    Must be invoked only once for each globally unique ID.
-   Depth is 0 for a root server (e.g., inter-datacenter communication nodes),
-   1 for the lower tier servers they connect to (e.g., ring in datacenter),
-   2 for the next tier servers, clients are not connected to lower ids then themselves."
+   Tier 0 for a root server (e.g., inter-datacenter communication nodes),
+   tier 1 for the next tier servers they connect to (e.g., ring in datacenter),
+   ...
+   tier n - the largest tier for the end clients. "
   {:id id
    :tier tier
    :val 0
