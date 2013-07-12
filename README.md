@@ -1,7 +1,8 @@
 # crdt
 
 CRDTs - Conflict-free Replicated Data Types:
-  - Handoff Counters - eventually consistent distributed counters
+  - Handoff Counters - eventually consistent distributed counters, as
+    presented in http://arxiv.org/abs/1307.3207
 
 
 ## Usage
