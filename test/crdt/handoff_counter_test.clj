@@ -4,8 +4,8 @@
 
 (def PAST 10)
 
-(def mx (atom 0)) 
-(def incrs (atom 0)) 
+(def mx (atom 0))
+(def incrs (atom 0))
 
 (defmacro rand-expr [& exprs]
   (let [n (count exprs)
@@ -21,7 +21,7 @@
     (let [a (first args)]
       (do
         (cond
-          (= f init) 
+          (= f init)
           (do
             (assert (not (env a)))
             (assoc env a (mapv (constantly (init a (second args))) (range PAST))))
@@ -50,7 +50,7 @@
                     env
                     (range 20000))
         ]
-    env)) 
+    env))
 
 (defn correct? [env]
   (apply = @incrs @mx (map #(value (peek (env %))) (keys env))))

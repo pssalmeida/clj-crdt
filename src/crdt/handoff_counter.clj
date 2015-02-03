@@ -34,18 +34,18 @@
 
 (defn- discard-tokens [{tokens :tokens :as counter} {id2 :id dc2 :dck slots2 :slots}]
   (assoc counter :tokens
-    (conj (sorted-map)
+    (into (sorted-map)
           (remove
             (fn [[[src dst] [_ dck _]]]
               (and (= dst id2)
-                   (if-let [[_ dck'] (slots2 src)] 
+                   (if-let [[_ dck'] (slots2 src)]
                      (> dck' dck)
                      (> dc2 dck))))
             tokens))))
 
 (defn- discard-slot [{id :id slots :slots :as counter} {id2 :id sc2 :sck tokens2 :tokens}]
-  (if (if-let [[sck _] (slots id2)] (> sc2 sck)) 
-    (assoc counter :slots (dissoc slots id2)) 
+  (if (if-let [[sck _] (slots id2)] (> sc2 sck))
+    (assoc counter :slots (dissoc slots id2))
     counter))
 
 (defn- fill-slots [{id :id tier :tier vs :vals slots :slots :as counter}
@@ -60,7 +60,7 @@
 
 (defn- merge-vectors [{tier :tier v :vals :as counter} {tier2 :tier v2 :vals}]
   (if (= tier tier2 0)
-    (assoc counter :vals (merge-with max v v2)) 
+    (assoc counter :vals (merge-with max v v2))
     counter))
 
 (defn- aggregate [{id :id tier :tier v :val vs :vals below :below :as counter}
@@ -90,7 +90,7 @@
         (assoc-in [:tokens [id id2]] [sck dck (vs id)])
         (assoc-in [:vals id] 0)
         (assoc :sck (inc sc)))
-      counter) 
+      counter)
     counter))
 
 (defn- cache-tokens [{id :id tier :tier tokens :tokens :as counter} {id2 :id tier2 :tier tokens2 :tokens}]
@@ -98,7 +98,7 @@
     (assoc counter :tokens
            (merge-with (fn [[sck1 _ _ :as t1] [sck2 _ _ :as t2]] (if (>= sck1 sck2) t1 t2))
                        tokens
-                       (filter (fn [[[src dst] _]] (and (= src id2) (not= dst id))) tokens2))) 
+                       (filter (fn [[[src dst] _]] (and (= src id2) (not= dst id))) tokens2)))
     counter))
 
 (defn join
