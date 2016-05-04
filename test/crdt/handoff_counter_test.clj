@@ -2,7 +2,7 @@
   (:use clojure.test
         crdt.handoff-counter))
 
-(def PAST 10)
+(def PAST 3)
 
 (def mx (atom 0))
 (def incrs (atom 0))
@@ -16,21 +16,18 @@
 (defn vars [prefix col]
   (into [] (map symbol (map #(str prefix %) col))))
 
-(defn t-op [f & args]
+(defn t-init [node tier]
   (fn [env]
-    (let [a (first args)]
-      (do
-        (cond
-          (= f init)
-          (do
-            (assert (not (env a)))
-            (assoc env a (mapv (constantly (init a (second args))) (range PAST))))
-          true
-          (let [res (apply f (peek (env a)) (rest args))
-                _   (swap! mx max (value res))
-                _ (assert (<= (value res) @incrs) (str (value res) " " @incrs))
-                ]
-            (assoc env a (conj (vec (subvec (env a) 1)) res))))))))
+     (do (assert (not (env node)))
+         (assoc env node (mapv (constantly (init node tier)) (range PAST))))))
+
+(defn t-op [f node & args]
+  (fn [env]
+    (let [res (apply f (peek (env node)) args)
+          _   (swap! mx max (value res))
+          _ (assert (<= (value res) @incrs) (str (value res) " " @incrs))
+          ]
+      (assoc env node (conj (vec (subvec (env node) 1)) res)))))
 
 (defn rand-trace [N C S R]
   (let [_  (reset! mx 0)
@@ -39,16 +36,15 @@
         servers (vars "s" (range S))
         roots (vars "r" (range R))
         nodes   (concat clients servers roots)
-        rand-op (fn [env] 
+        rand-op (fn [env]
                   (rand-expr (do (swap! incrs inc) ((t-op incr (rand-nth nodes)) env))
                              ((t-op join (rand-nth nodes) (rand-nth (env (rand-nth nodes)))) env)))
-        env (reduce (fn [env node] ((t-op init node 2) env)) {} clients)
-        env (reduce (fn [env node] ((t-op init node 1) env)) env servers)
-        env (reduce (fn [env node] ((t-op init node 0) env)) env roots)
+        env (reduce (fn [env node] ((t-init node 2) env)) {} clients)
+        env (reduce (fn [env node] ((t-init node 1) env)) env servers)
+        env (reduce (fn [env node] ((t-init node 0) env)) env roots)
         env (reduce (fn [env _] (rand-op env)) env (range N))
-        env (reduce (fn [env i] ((t-op join (rand-nth nodes) (rand-nth (env (rand-nth nodes)))) env))
-                    env
-                    (range 20000))
+        ;env (reduce (fn [env i] ((t-op join (rand-nth nodes) (rand-nth (env (rand-nth nodes)))) env)) env (range 20000))
+        env (reduce (fn [env i] ((t-op join (rand-nth nodes) (peek (env (rand-nth nodes)))) env)) env (range 20000))
         ]
     env))
 
